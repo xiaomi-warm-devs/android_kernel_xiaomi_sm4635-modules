@@ -278,6 +278,8 @@ ifeq ($(KERNEL_BUILD), 1)
 	obj-y	+= wcd938x/
 	obj-y	+= wcd939x/
 	obj-y	+= wcd9378/
+	obj-y	+= fs1512/
+	obj-y	+= sia8001/
 	obj-y	+= bolero/
 	obj-y	+= lpass-cdc/
 	obj-y	+= wsa884x/

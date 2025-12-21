@@ -26,6 +26,10 @@
 #include "internal.h"
 #include "asoc/bolero-slave-internal.h"
 
+#ifdef CONFIG_SND_SOC_FS1512
+#include "../fs1512/fs15xx.h"
+#endif /*CONFIG_SND_SOC_FS1512*/
+
 #define NUM_SWRS_DT_PARAMS 5
 
 #define WCD9378_MOBILE_MODE 0x01
@@ -326,6 +330,7 @@ static int wcd9378_swr_slvdev_datapath_control(struct device *dev,
 					scale_reg, &clk_scale);
 		swr_write(swr_dev, swr_dev->dev_num,
 					scale_reg2, &clk_scale);
+
 		ret = swr_slvdev_datapath_control(swr_dev,
 					swr_dev->dev_num, true);
 	} else {
@@ -1569,8 +1574,6 @@ static int wcd9378_codec_hphl_dac_event(struct snd_soc_dapm_widget *w,
 		wcd9378_rx_connect_port(component, HPH_L, false);
 
 		if (wcd9378->comp1_enable) {
-			snd_soc_component_update_bits(component, WCD9378_CDC_COMP_CTL_0,
-				WCD9378_CDC_COMP_CTL_0_HPHL_COMP_EN_MASK, 0x00);
 			wcd9378_rx_connect_port(component, COMP_L, false);
 		}
 		break;
@@ -1629,8 +1632,6 @@ static int wcd9378_codec_hphr_dac_event(struct snd_soc_dapm_widget *w,
 		wcd9378_rx_connect_port(component, HPH_R, false);
 
 		if (wcd9378->comp2_enable) {
-			snd_soc_component_update_bits(component, WCD9378_CDC_COMP_CTL_0,
-				WCD9378_CDC_COMP_CTL_0_HPHR_COMP_EN_MASK, 0x00);
 			wcd9378_rx_connect_port(component, COMP_R, false);
 		}
 		break;
@@ -2826,8 +2827,8 @@ static int wcd9378_ear_pa_gain_get(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 
 	ear_gain =
-		snd_soc_component_read(component, WCD9378_ANA_EAR_COMPANDER_CTL) &
-				WCD9378_ANA_EAR_COMPANDER_CTL_EAR_GAIN_MASK;
+		(snd_soc_component_read(component, WCD9378_ANA_EAR_COMPANDER_CTL) &
+				WCD9378_ANA_EAR_COMPANDER_CTL_EAR_GAIN_MASK) >> 2;
 
 	ucontrol->value.enumerated.item[0] = ear_gain;
 	dev_dbg(component->dev, "%s: get ear_gain val: 0x%x\n",
@@ -2852,7 +2853,7 @@ static int wcd9378_ear_pa_gain_put(struct snd_kcontrol *kcontrol,
 		return -EINVAL;
 	}
 
-	ear_gain = ucontrol->value.integer.value[0];
+	ear_gain = ucontrol->value.integer.value[0] << 2;
 	snd_soc_component_update_bits(component, WCD9378_ANA_EAR_COMPANDER_CTL,
 				WCD9378_ANA_EAR_COMPANDER_CTL_EAR_GAIN_MASK,
 				ear_gain);
@@ -3475,6 +3476,56 @@ static const struct snd_kcontrol_new rx1_switch[] = {
 	SOC_DAPM_SINGLE("Switch", SND_SOC_NOPM, 0, 1, 0)
 };
 
+#if defined(CONFIG_SND_SOC_FS1512)
+extern int fs15xx_ext_amp_set(int enable);
+static int fs1512_dev_0_pa_event(struct snd_soc_dapm_widget *w,
+		     struct snd_kcontrol *control, int event)
+{
+	switch (event) {
+	case SND_SOC_DAPM_POST_PMU:
+		fs15xx_ext_amp_set(1);
+		break;
+	case SND_SOC_DAPM_PRE_PMD:
+		fs15xx_ext_amp_set(0);
+		break;
+	default:
+		pr_err("%s: invalid DAPM event %d\n", __func__, event);
+		break;
+	}
+	return 0;
+}
+#endif /* CONFIG_SND_SOC_FS1512 */
+
+#if defined(CONFIG_SND_SOC_SIA8001)
+extern int wcd93xx_siaxx_resume(void);
+extern int wcd93xx_siaxx_suspend(void);
+extern int wcd93xx_no_siaxx(void);
+static int siaxx_dev_0_pa_event(struct snd_soc_dapm_widget *w,
+		     struct snd_kcontrol *control, int event)
+{
+	int g_sipa_chip_status;
+	g_sipa_chip_status = wcd93xx_no_siaxx();
+	if(g_sipa_chip_status){
+		switch (event) {
+		case SND_SOC_DAPM_POST_PMU:
+			wcd93xx_siaxx_resume();
+			pr_debug("%s: power on", __func__);
+			break;
+		case SND_SOC_DAPM_PRE_PMD:
+			wcd93xx_siaxx_suspend();
+			pr_debug("%s: power off", __func__);
+			break;
+		default:
+			pr_err("%s: invalid DAPM event %d\n", __func__, event);
+			break;
+		}
+		return 0;
+	} else {
+		return 0;
+	}
+}
+#endif /* CONFIG_SND_SOC_SIA8001 */
+
 static const struct snd_soc_dapm_widget wcd9378_dapm_widgets[] = {
 
 	/*input widgets*/
@@ -3680,6 +3731,17 @@ static const struct snd_soc_dapm_widget wcd9378_dapm_widgets[] = {
 	SND_SOC_DAPM_OUTPUT("AUX"),
 	SND_SOC_DAPM_OUTPUT("HPHL"),
 	SND_SOC_DAPM_OUTPUT("HPHR"),
+#if defined(CONFIG_SND_SOC_FS1512)
+	SND_SOC_DAPM_OUT_DRV_E("FS1512_DEV_0", SND_SOC_NOPM, 0, 0, NULL, 0,
+				fs1512_dev_0_pa_event, SND_SOC_DAPM_POST_PMU |
+				SND_SOC_DAPM_PRE_PMD),
+#endif /* CONFIG_SND_SOC_FS1512 */
+#if defined(CONFIG_SND_SOC_SIA8001)
+	SND_SOC_DAPM_OUT_DRV_E("SIA81XX_DEV_0", SND_SOC_NOPM, 0, 0, NULL, 0,
+				siaxx_dev_0_pa_event, SND_SOC_DAPM_POST_PMU |
+				SND_SOC_DAPM_PRE_PMD),
+    #endif /* CONFIG_SND_SOC_SIA8001 */
+
 };
 
 static const struct snd_soc_dapm_route wcd9378_audio_map[] = {
@@ -3775,7 +3837,18 @@ static const struct snd_soc_dapm_route wcd9378_audio_map[] = {
 	{"SA SEQUENCER", NULL, "AUX_RDAC"},
 	{"AUX_MIXER", "Switch", "SA SEQUENCER",},
 	{"AUX PGA", NULL, "AUX_MIXER"},
+#if defined(CONFIG_SND_SOC_FS1512) || defined(CONFIG_SND_SOC_SIA8001)
+#if defined(CONFIG_SND_SOC_FS1512)
+	{"FS1512_DEV_0", NULL, "AUX PGA"},
+	{"AUX", NULL, "FS1512_DEV_0"},
+#endif /* CONFIG_SND_SOC_FS1512 */
+#if defined(CONFIG_SND_SOC_SIA8001)
+	{"SIA81XX_DEV_0", NULL, "AUX PGA"},
+	{"AUX", NULL, "SIA81XX_DEV_0"},
+#endif /* CONFIG_SND_SOC_SIA8001 */
+#else
 	{"AUX", NULL, "AUX PGA"},
+#endif
 };
 
 static ssize_t wcd9378_version_read(struct snd_info_entry *entry,

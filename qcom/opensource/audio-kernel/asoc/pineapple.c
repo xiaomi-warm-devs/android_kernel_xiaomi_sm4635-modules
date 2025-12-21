@@ -51,6 +51,10 @@
 #include "msm_common.h"
 #include "msm_dailink.h"
 
+
+#ifdef CONFIG_SND_SOC_FS1512
+#include "codecs/fs1512/fs15xx.h"
+#endif /*CONFIG_SND_SOC_FS1512*/
 #define DRV_NAME "pineapple-asoc-snd"
 #define __CHIPSET__ "PINEAPPLE "
 #define MSM_DAILINK_NAME(name) (__CHIPSET__#name)
@@ -59,7 +63,7 @@
 #define WCD9XXX_MBHC_DEF_BUTTONS    8
 #define CODEC_EXT_CLK_RATE          9600000
 #define DEV_NAME_STR_LEN            32
-#define WCD_MBHC_HS_V_MAX           1600
+#define WCD_MBHC_HS_V_MAX           1700
 
 #define WCN_CDC_SLIM_RX_CH_MAX 2
 #define WCN_CDC_SLIM_TX_CH_MAX 2
@@ -70,6 +74,10 @@
 #define MONO_SPEAKER    1
 #define STEREO_SPEAKER  2
 #define QUAD_SPEAKER    4
+
+#ifdef CONFIG_SND_SOC_SIA8001
+#include "codecs/sia8001/sipa_aux_dev_if.h"
+#endif /*CONFIG_SND_SOC_SIA8001*/
 
 enum {
 	WCD937X_DEV_INDEX,
@@ -131,9 +139,25 @@ static struct wcd_mbhc_config wcd_mbhc_cfg = {
 	.swap_gnd_mic = NULL,
 	.hs_ext_micbias = true,
 	.key_code[0] = KEY_MEDIA,
+/*import xiaomi headset patch begin */
+#if IS_ENABLED(CONFIG_FACTORY_BUILD) && defined(CONFIG_XIAOMI_AUDIO_MBHC)
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[3] = 0,
+#elif IS_ENABLED(CONFIG_FACTORY_BUILD)
+	.key_code[1] = KEY_VOLUMEUP,
+	.key_code[2] = KEY_VOLUMEDOWN,
+	.key_code[3] = 0,
+#elif defined(CONFIG_XIAOMI_AUDIO_MBHC)
+	.key_code[1] = BTN_1,
+	.key_code[2] = BTN_2,
+	.key_code[3] = 0,
+#else
 	.key_code[1] = KEY_VOICECOMMAND,
 	.key_code[2] = KEY_VOLUMEUP,
 	.key_code[3] = KEY_VOLUMEDOWN,
+#endif
+/*import xiaomi headset patch end */
 	.key_code[4] = 0,
 	.key_code[5] = 0,
 	.key_code[6] = 0,
@@ -510,8 +534,15 @@ static void *def_wcd_mbhc_cal(void)
 		(sizeof(btn_cfg->_v_btn_low[0]) * btn_cfg->num_btn);
 
 	btn_high[0] = 75;
+/*import xiaomi headset patch begin */
+#if defined(CONFIG_XIAOMI_AUDIO_MBHC)
+	btn_high[1] = 225;
+	btn_high[2] = 450;
+#else
 	btn_high[1] = 150;
 	btn_high[2] = 237;
+#endif
+/*import xiaomi headset patch end */
 	btn_high[3] = 500;
 	btn_high[4] = 500;
 	btn_high[5] = 500;
@@ -2067,6 +2098,10 @@ static int msm_int_wsa2_init(struct snd_soc_pcm_runtime *rtd)
 	return msm_int_wsa884x_2_init(rtd);
 }
 
+#ifdef CONFIG_LCT_AUDIO_INFO
+extern int lct_audio_info_create_sysfs(void);
+#endif
+
 static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 {
 	int codec_variant = -1;
@@ -2090,6 +2125,14 @@ static int msm_rx_tx_codec_init(struct snd_soc_pcm_runtime *rtd)
 
 	snd_soc_dapm_new_controls(dapm, msm_int_dapm_widgets,
 				ARRAY_SIZE(msm_int_dapm_widgets));
+
+	#ifdef CONFIG_SND_SOC_FS1512
+	fs15xx_add_codec_kcontrol(lpass_cdc_component);
+	#endif /*CONFIG_SND_SOC_FS1512*/
+
+	#ifdef CONFIG_LCT_AUDIO_INFO
+	lct_audio_info_create_sysfs();
+	#endif
 
 	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic0");
 	snd_soc_dapm_ignore_suspend(dapm, "Digital Mic1");
@@ -2471,6 +2514,10 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 	/* parse upd configuration */
 	msm_parse_upd_configuration(pdev, pdata);
 
+	#ifdef CONFIG_SND_SOC_SIA8001
+	soc_aux_init_only_sia81xx(pdev, card);
+	#endif /*CONFIG_SND_SOC_SIA8001*/
+
 	ret = devm_snd_soc_register_card(&pdev->dev, card);
 	if (ret == -EPROBE_DEFER) {
 		if (codec_reg_done)
@@ -2548,6 +2595,9 @@ static int msm_asoc_machine_probe(struct platform_device *pdev)
 
 	return 0;
 err:
+    #ifdef CONFIG_SND_SOC_SIA8001
+	soc_aux_deinit_only_sia81xx(pdev, card);
+	#endif /*CONFIG_SND_SOC_SIA8001*/
 	devm_kfree(&pdev->dev, pdata);
 	return ret;
 }

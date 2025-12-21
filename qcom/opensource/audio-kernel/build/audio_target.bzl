@@ -263,7 +263,10 @@ def define_pitti(t, v, lt=None):
             "lpass_cdc_wsa2_macro_dlkm",
             "wsa881x_analog_dlkm",
             "wcd9378_dlkm",
-            "wcd9378_slave_dlkm"
+            "wcd9378_slave_dlkm",
+            "lct_audio_info_dlkm",
+            "sia8001_dlkm",
+            "fs1512_dlkm",
         ],
         config_options = [
             "CONFIG_SND_SOC_PITTI",
@@ -278,6 +281,10 @@ def define_pitti(t, v, lt=None):
             "CONFIG_SND_SOC_WCD9XXX_V2",
             "CONFIG_SND_SOC_WCD_MBHC_ADC",
             "CONFIG_MSM_EXT_DISPLAY",
+            "CONFIG_LCT_AUDIO_INFO",
+            "CONFIG_SND_SOC_SIA8001",
+            "CONFIG_SND_SOC_FS1512",
+            "CONFIG_XIAOMI_AUDIO_MBHC",
         ],
         lunch_target = lt,
     )

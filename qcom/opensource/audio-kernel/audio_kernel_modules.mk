@@ -58,7 +58,10 @@ endif
 ifeq ($(call is-board-platform-in-list, pitti), true)
 AUDIO_KERNEL_MODULES += $(KERNEL_MODULES_OUT)/wsa881x_analog_dlkm.ko \
 	$(KERNEL_MODULES_OUT)/wcd9378_dlkm.ko \
-	$(KERNEL_MODULES_OUT)/wcd9378_slave_dlkm.ko
+	$(KERNEL_MODULES_OUT)/wcd9378_slave_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/lct_audio_info_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/sia8001_dlkm.ko \
+	$(KERNEL_MODULES_OUT)/fs1512_dlkm.ko
 endif
 
 endif
